@@ -1,0 +1,128 @@
+服务器公共检查项
+01----检查各个磁盘及分区空间占用情况
+df -h 或dh -hk 查看已占用空间十分大于80%
+02---检查CPU平均负载情况
+           uptime 或top   load Average (cpu内核数量之和)
+03---检查CPU占用率
+            vmstat 1 5
+当idle列值长时间小于25%，说明CPU负载较大
+          ![image](https://cloud.githubusercontent.com/assets/10526571/15771084/e129f148-299a-11e6-87e4-509300e0254d.png)
+us=user 用户使用
+sy=system 操作系统使用
+id=idle 空闲
+04----检查进程状态、数量及进程的CPU占用情况
+           top
+无state为“zombie”的进程僵尸进程 ；linux下可以通过ps -ax| grep Z查找僵尸进程（要找到父进程清除）
+05---检查内存交换
+           free 或top（swap 行为交换分区）（空闲率小于90%需处理）
+06---检查系统管理员邮件
+            mail（root的mail保存在/var/spool/mail/root）
+07---检查系统操作日志
+             less /var/log/messages
+             grep -i error /var/log/messages
+             grep -i fail /var/log/messages
+             egrep -i 'error|warn' /var/log/messages
+08---检查网卡状态
+            ifconfig -a
+检查各网卡配置状态是否“UP”（主要看那些配置IP地址的网卡）
+ping 1分钟或是100个包是否有丢包情况
+09---检查各个服务器操作系统时间是否一致
+           分别登陆各个服务器同时（或依次）执行date（时间差不应超过一分钟）
+若时间不同步，可以执行手动时间同步
+1）date 月日时分年.秒
+2）hwclock -w 写入主板的rtc芯片
+如果启用了ntp服务可以执行下列命令同步
+service ntpd stop（停止服务）
+ntpdate ip（时间同步）
+service ntpd start（启动服务）
+10--密码维护
+定期修改root及常用用户的密码
+           passwd username
+11--在主机上检查整个系统状态
+             /proc/下cpuinfo、meminfo等文件和dmidecode |more
+检查系统中cpu，内存，磁盘等各方面信息没看是否有报错或是异常
+12---检查磁盘读写性能情况  日
+               sar -d 2 10
+sar输出结果中，avwait或await列的值应该是0，或瞬时较大不应该长时间大于10
+13---进行系统或是业务软件的备份  （每月或有更新时）
+           cp a a.bak
+           tar -cvf /tmp/etc.tar /etc或dd
+备份是相当必要的，以免造成损失
+打包目录下文件备份
+dd备份
+dd if=/dev/hdx of=/dev/hdy
+将本地的/dev/hdx整盘备份到/dev/hdy
+14---查看系统负载 日
+查看 /proc/loadavg
+![image](https://cloud.githubusercontent.com/assets/10526571/15771870/328eb5c8-29a0-11e6-94ac-98a8341b4a73.png)
+前三个是系统负载， 1/332 中1代表此时运行队伍中的进程个数，而332是代表此时的进程总数 18496到此为止，最后创建的一个进程ID
+15---查看服务器网络连接状态 日
+netstat -n |awk '/^tcp/ {++S[$NF]} END {for (a in S) print a,S[a]}'
+CLOSED：无连接是活动的或正在进行
+LISTEN：服务器在等待进入呼叫
+SYN_RECV：一个连接请求已经到达，等待确认
+SYN_SENT：应用已经开始，打开一个连接
+ESTABLISHED：正常数据传输状态
+FIN_WAIT1：应用说它已经完成
+FIN_WAIT2：另一个已经同意释放
+ITMED_WAIT：等待所有分组死掉
+CLOSING：两边同时尝试关闭
+TIME_WAIT：另一边已初始化一个释放
+LAST_ACK：等待所有的分组死掉
+ESTABLISHED的值其实也是当前的并发数，这个可重点关注下；另外可关注下TIME_WAIT
+这项的数值。LInux下高并发的Squid服务器，TCP TIME_WAIT套接字数量经常达到两三万，
+服务器很容易被拖死。
+16----查看系统本地可用端口极限值  
+            cat /proc/sys/net/ipv4/ip_local_port_range
+17---检查系统及最大打开文件数 
+            cat /proc/sys/fs/file-max
+设置最大打开文件数
+1、系统级的设置
+vi /etc/sysctl.conf
+增加
+fs.file-max = 10000
+立即生效：
+sysctl -p
+2、用户级设置
+vi /etc/security/limits.conf
+设置如下
+httpd soft nofile  4096
+httpd hard nofile 10240
+httpd是用户，可以使用通配符*表示所有用户。
+要使limits.conf 文件配置生效，必须要确保 pam_limits.so 文件被加入到启动文件中
+查看/etc/pam.d/login 文件中有：
+session required /lib/security/pam_limits.so
+也可以在/etc/profile后面加上ulimit -n 10240
+使用如下命令立即生效
+#su -httpd
+$ ulimit -Hn 10240
+$ ulimit -Sn 4096
+2.数据库服务器
+01 ---检查mysql最大设置连接数  季度
+           show variables like 'max_connections'
+02---检查mysql最大响应连接数 日
+            show global status like 'Max_used_connections';
+03---检查mysql key_buffer_size
+             show variables like 'key_buffer_size'
+04---检查mysql现在使用的key_buffer_size 
+             show global status like 'key_read%';
+05---检查mysql缓存簇
+             show global status like 'key_blocks_u% ';
+06---检查mysql隐含临时表的数量
+          show global status like 'created_tmp%'
+07---检查mysql临时表的配置
+          show variables where Variable_name in ('tmp_table_size','max_heap_table_size');
+08---检查mysql打开表的数量
+           show global status like 'open%tables%';
+09---检查mysql打开进程数量
+         show global status like 'Thread%';
+10---检查mysql缓存
+           show global status like 'qcache%';
+11---检查mysql排序使用情况
+            show global status like 'sort%';
+12---检查mysql文件打开数
+            show global status like 'open_files';
+            show global status like 'open_files_limit';
+原文链接：http://download.csdn.net/detail/biggeniusiam/8085999
+
+========================以上每日维护检查,个别按月份季度===============================
